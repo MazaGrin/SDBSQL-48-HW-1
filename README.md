@@ -1,4 +1,4 @@
-# Домашнее задание к занятию «SQL. Часть 1» - Шамаев Григорий
+# Домашнее задание к занятию «SQL. Часть 2» - Шамаев Григорий
 
 ### Инструкция по выполнению домашнего задания
 
@@ -10,7 +10,7 @@
    - для корректного добавления скриншотов воспользуйтесь инструкцией [«Как вставить скриншот в шаблон с решением»](https://github.com/netology-code/sys-pattern-homework/blob/main/screen-instruction.md);
    - при оформлении используйте возможности языка разметки md. Коротко об этом можно посмотреть в [инструкции по MarkDown](https://github.com/netology-code/sys-pattern-homework/blob/main/md-instruction.md).
 4. После завершения работы над домашним заданием сделайте коммит (`git commit -m "comment"`) и отправьте его на Github (`git push origin`).
-5. После выполнения домашнего задания прикрепите и отправьте ссылку на решение в виде md-файла в вашем Github.
+5. Для проверки домашнего задания преподавателем в личном кабинете прикрепите и отправьте ссылку на решение в виде md-файла в вашем Github.
 6. Любые вопросы задавайте в чате учебной группы и/или в разделе «Вопросы по заданию» в личном кабинете.
 
 Желаем успехов в выполнении домашнего задания.
@@ -21,45 +21,82 @@
 
 ### Задание 1
 
-Получите уникальные названия районов из таблицы с адресами, которые начинаются на “K” и заканчиваются на “a” и не содержат пробелов.
+Одним запросом получите информацию о магазине, в котором обслуживается более 300 покупателей, и выведите в результат следующую информацию: 
+- фамилия и имя сотрудника из этого магазина;
+- город нахождения магазина;
+- количество пользователей, закреплённых в этом магазине.
 
-``` sql
-select a.district  from address a where a.district like 'K%a'
+``` SQL
+SELECT 
+ct.city as 'city',
+Concat(sf.first_name, ' ', sf.last_name) as 'manager', 
+count(c.customer_id ) as 'total_customers'
+FROM store s 
+	JOIN customer c on s.store_id  = c.store_id 
+	LEFT JOIN address a on s.address_id =a.address_id
+	LEFT JOIN staff sf on s.manager_staff_id =sf.staff_id 
+	LEFT JOIN city ct on a.city_id = ct.city_id
+GROUP by s.store_id 
+HAVING  total_customers > 300;
 ```
+![alt text](image.png)
 
 ### Задание 2
 
-Получите из таблицы платежей за прокат фильмов информацию по платежам, которые выполнялись в промежуток с 15 июня 2005 года по 18 июня 2005 года **включительно** и стоимость которых превышает 10.00.
-``` sql
-select * from payment p where p.payment_date BETWEEN '2005-06-15 00:00:00' AND '2005-06-18 23:59:59' AND amount > 10
+Получите количество фильмов, продолжительность которых больше средней продолжительности всех фильмов.
+``` SQL 
+SELECT count(*) FROM film f 
+WHERE f.`length` > (SELECT avg(f.`length` ) FROM film f)
 ```
-
+![alt text](image-1.png)  
 ### Задание 3
 
-Получите последние пять аренд фильмов.
+Получите информацию, за какой месяц была получена наибольшая сумма платежей, и добавьте информацию по количеству аренд за этот месяц.
+``` SQL
+WITH total AS (
+    SELECT 
+        MONTH(p.payment_date) AS payment_month,
+        SUM(p.amount) AS amount,
+        (SELECT COUNT(*) from rental r
+			WHERE MONTH(r.rental_date) >= payment_month AND MONTH(r.return_date) <= payment_month) as rental_count
+    FROM payment p
+    GROUP BY MONTH(p.payment_date)
+)
+SELECT * FROM total 
+WHERE total.amount = (SELECT MAX(amount) FROM total);
 ```
-select * from rental r 
-order by r.rental_date desc
-limit 5
-```
-### Задание 4
+![alt text](image-2.png)  
 
-Одним запросом получите активных покупателей, имена которых Kelly или Willie. 
 
-Сформируйте вывод в результат таким образом:
-- все буквы в фамилии и имени из верхнего регистра переведите в нижний регистр,
-- замените буквы 'll' в именах на 'pp'.
-``` sql
-select replace(lower(c.first_name),'ll','pp'), lower(c.last_name) from customer c 
-where c.first_name  = 'Kelly' OR c.first_name = 'Willie'
-```
 ## Дополнительные задания (со звёздочкой*)
 Эти задания дополнительные, то есть не обязательные к выполнению, и никак не повлияют на получение вами зачёта по этому домашнему заданию. Вы можете их выполнить, если хотите глубже шире разобраться в материале.
 
+### Задание 4*
+
+Посчитайте количество продаж, выполненных каждым продавцом. Добавьте вычисляемую колонку «Премия». Если количество продаж превышает 8000, то значение в колонке будет «Да», иначе должно быть значение «Нет».
+
+``` SQL
+SELECT 
+    CONCAT(s.first_name, ' ', s.last_name) AS manager,
+    COUNT(r.rental_id) as total_rental,
+    CASE WHEN COUNT(r.rental_id) > 8000 THEN 'Да'
+        ELSE 'Нет' END as Премия
+FROM staff s 
+JOIN rental r on r.staff_id = s.staff_id 
+GROUP BY s.staff_id
+```
+![alt text](image-3.png)
+
+
+
 ### Задание 5*
 
-Выведите Email каждого покупателя, разделив значение Email на две отдельных колонки: в первой колонке должно быть значение, указанное до @, во второй — значение, указанное после @.
+Найдите фильмы, которые ни разу не брали в аренду.
 
-### Задание 6*
-
-Доработайте запрос из предыдущего задания, скорректируйте значения в новых колонках: первая буква должна быть заглавной, остальные — строчными.
+``` SQL
+SELECT f.title  FROM film f 
+LEFT JOIN (SELECT r.rental_id , i.film_id  FROM rental r 
+JOIN inventory i on r.inventory_id = i.inventory_id) as r on f.film_id  = r.film_id
+WHERE r.rental_id  IS NULL
+```
+![alt text](image-4.png)
