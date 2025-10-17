@@ -56,16 +56,22 @@ WHERE f.`length` > (SELECT avg(f.`length` ) FROM film f)
 WITH total AS (
     SELECT 
         MONTH(p.payment_date) AS payment_month,
+        YEAR(p.payment_date) AS payment_year,
         SUM(p.amount) AS amount,
         (SELECT COUNT(*) from rental r
-			WHERE MONTH(r.rental_date) >= payment_month AND MONTH(r.return_date) <= payment_month) as rental_count
+			WHERE STR_TO_DATE(CONCAT(payment_year,'-', payment_month, '-', '01'), '%Y-%m-%d') BETWEEN 
+				STR_TO_DATE(CONCAT(YEAR(r.rental_date), '-', MONTH(r.rental_date), '-', '01'), '%Y-%m-%d') AND
+				STR_TO_DATE(CONCAT(YEAR(r.return_date), '-', MONTH(r.return_date), '-', '01'), '%Y-%m-%d')
+		) as rental_count
     FROM payment p
-    GROUP BY MONTH(p.payment_date)
+    GROUP BY payment_month, payment_year
 )
-SELECT * FROM total 
+SELECT DATE_FORMAT(STR_TO_DATE(CONCAT(total.payment_year, '-',total.payment_month,'-','01'), '%Y-%m-%d'),'%Y %M') as month,
+	total.amount,
+	total.rental_count  FROM total 
 WHERE total.amount = (SELECT MAX(amount) FROM total);
 ```
-![alt text](image-2.png)  
+![alt text](image-5.png)
 
 
 ## Дополнительные задания (со звёздочкой*)
