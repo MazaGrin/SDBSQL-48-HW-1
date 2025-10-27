@@ -1,4 +1,4 @@
-# Домашнее задание к занятию «SQL. Часть 2» - Шамаев Григорий
+# Домашнее задание к занятию «Репликация и масштабирование. Часть 1» - Шамаев Григорий
 
 ### Инструкция по выполнению домашнего задания
 
@@ -17,92 +17,36 @@
 
 ---
 
-Задание можно выполнить как в любом IDE, так и в командной строке.
-
 ### Задание 1
 
-Одним запросом получите информацию о магазине, в котором обслуживается более 300 покупателей, и выведите в результат следующую информацию: 
-- фамилия и имя сотрудника из этого магазина;
-- город нахождения магазина;
-- количество пользователей, закреплённых в этом магазине.
+На лекции рассматривались режимы репликации master-slave, master-master, опишите их различия.
 
-``` SQL
-SELECT 
-ct.city as 'city',
-Concat(sf.first_name, ' ', sf.last_name) as 'manager', 
-count(c.customer_id ) as 'total_customers'
-FROM store s 
-	JOIN customer c on s.store_id  = c.store_id 
-	LEFT JOIN address a on s.address_id =a.address_id
-	LEFT JOIN staff sf on s.manager_staff_id =sf.staff_id 
-	LEFT JOIN city ct on a.city_id = ct.city_id
-GROUP by s.store_id 
-HAVING  total_customers > 300;
-```
-![alt text](image.png)
+master-slave - предполагает, что есть основной сервер, который получает данные, и вспомогательный сервер, на который копируются все данные с основного. При это вмспмогательный сервер позволяет только читать данные, но не изменять их.
+
+master-master - предполагает, что оба сервера одновременно являются и мастером и слэйвом, т.е. при записи данных в один из них - данные автоматически копируются на второй. 
+
+
+---
 
 ### Задание 2
 
-Получите количество фильмов, продолжительность которых больше средней продолжительности всех фильмов.
-``` SQL 
-SELECT count(*) FROM film f 
-WHERE f.`length` > (SELECT avg(f.`length` ) FROM film f)
-```
-![alt text](image-1.png)  
-### Задание 3
+Выполните конфигурацию master-slave репликации, примером можно пользоваться из лекции.
 
-Получите информацию, за какой месяц была получена наибольшая сумма платежей, и добавьте информацию по количеству аренд за этот месяц.
-``` SQL
-WITH total AS (
-    SELECT 
-        MONTH(p.payment_date) AS payment_month,
-        YEAR(p.payment_date) AS payment_year,
-        SUM(p.amount) AS amount,
-        (SELECT COUNT(*) from rental r
-			WHERE STR_TO_DATE(CONCAT(payment_year,'-', payment_month, '-', '01'), '%Y-%m-%d') BETWEEN 
-				STR_TO_DATE(CONCAT(YEAR(r.rental_date), '-', MONTH(r.rental_date), '-', '01'), '%Y-%m-%d') AND
-				STR_TO_DATE(CONCAT(YEAR(r.return_date), '-', MONTH(r.return_date), '-', '01'), '%Y-%m-%d')
-		) as rental_count
-    FROM payment p
-    GROUP BY payment_month, payment_year
-)
-SELECT DATE_FORMAT(STR_TO_DATE(CONCAT(total.payment_year, '-',total.payment_month,'-','01'), '%Y-%m-%d'),'%Y %M') as month,
-	total.amount,
-	total.rental_count  FROM total 
-WHERE total.amount = (SELECT MAX(amount) FROM total);
-```
-![alt text](image-5.png)
+*Приложите скриншоты конфигурации, выполнения работы: состояния и режимы работы серверов.*  
+![alt text](image-6.png)  
+![alt text](image-7.png)  
+![alt text](image-8.png)  
+![alt text](image-9.png)  
 
+---
 
 ## Дополнительные задания (со звёздочкой*)
 Эти задания дополнительные, то есть не обязательные к выполнению, и никак не повлияют на получение вами зачёта по этому домашнему заданию. Вы можете их выполнить, если хотите глубже шире разобраться в материале.
 
-### Задание 4*
+---
 
-Посчитайте количество продаж, выполненных каждым продавцом. Добавьте вычисляемую колонку «Премия». Если количество продаж превышает 8000, то значение в колонке будет «Да», иначе должно быть значение «Нет».
+### Задание 3* 
 
-``` SQL
-SELECT 
-    CONCAT(s.first_name, ' ', s.last_name) AS manager,
-    COUNT(r.rental_id) as total_rental,
-    CASE WHEN COUNT(r.rental_id) > 8000 THEN 'Да'
-        ELSE 'Нет' END as Премия
-FROM staff s 
-JOIN rental r on r.staff_id = s.staff_id 
-GROUP BY s.staff_id
-```
-![alt text](image-3.png)
+Выполните конфигурацию master-master репликации. Произведите проверку.
 
-
-
-### Задание 5*
-
-Найдите фильмы, которые ни разу не брали в аренду.
-
-``` SQL
-SELECT f.title  FROM film f 
-LEFT JOIN (SELECT r.rental_id , i.film_id  FROM rental r 
-JOIN inventory i on r.inventory_id = i.inventory_id) as r on f.film_id  = r.film_id
-WHERE r.rental_id  IS NULL
-```
-![alt text](image-4.png)
+*Приложите скриншоты конфигурации, выполнения работы: состояния и режимы работы серверов.*
