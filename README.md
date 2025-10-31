@@ -1,4 +1,4 @@
-# Домашнее задание к занятию «SQL. Часть 2» - Шамаев Григорий
+# Домашнее задание к занятию «Индексы» - Шамаев Григорий
 
 ### Инструкция по выполнению домашнего задания
 
@@ -10,99 +10,61 @@
    - для корректного добавления скриншотов воспользуйтесь инструкцией [«Как вставить скриншот в шаблон с решением»](https://github.com/netology-code/sys-pattern-homework/blob/main/screen-instruction.md);
    - при оформлении используйте возможности языка разметки md. Коротко об этом можно посмотреть в [инструкции по MarkDown](https://github.com/netology-code/sys-pattern-homework/blob/main/md-instruction.md).
 4. После завершения работы над домашним заданием сделайте коммит (`git commit -m "comment"`) и отправьте его на Github (`git push origin`).
-5. Для проверки домашнего задания преподавателем в личном кабинете прикрепите и отправьте ссылку на решение в виде md-файла в вашем Github.
+5. После отправки ссылки на решение в виде md-файла в вашем Github в личном кабинете появится эталонный ответ.
 6. Любые вопросы задавайте в чате учебной группы и/или в разделе «Вопросы по заданию» в личном кабинете.
 
 Желаем успехов в выполнении домашнего задания.
 
----
-
-Задание можно выполнить как в любом IDE, так и в командной строке.
-
 ### Задание 1
 
-Одним запросом получите информацию о магазине, в котором обслуживается более 300 покупателей, и выведите в результат следующую информацию: 
-- фамилия и имя сотрудника из этого магазина;
-- город нахождения магазина;
-- количество пользователей, закреплённых в этом магазине.
-
-``` SQL
-SELECT 
-ct.city as 'city',
-Concat(sf.first_name, ' ', sf.last_name) as 'manager', 
-count(c.customer_id ) as 'total_customers'
-FROM store s 
-	JOIN customer c on s.store_id  = c.store_id 
-	LEFT JOIN address a on s.address_id =a.address_id
-	LEFT JOIN staff sf on s.manager_staff_id =sf.staff_id 
-	LEFT JOIN city ct on a.city_id = ct.city_id
-GROUP by s.store_id 
-HAVING  total_customers > 300;
+Напишите запрос к учебной базе данных, который вернёт процентное отношение общего размера всех индексов к общему размеру всех таблиц.
+``` sql
+SELECT (sum(index_length) / sum(data_length)) *100
+FROM INFORMATION_SCHEMA.TABLES  t
+where t.TABLE_SCHEMA = 'sakila';
 ```
-![alt text](image.png)
-
 ### Задание 2
 
-Получите количество фильмов, продолжительность которых больше средней продолжительности всех фильмов.
-``` SQL 
-SELECT count(*) FROM film f 
-WHERE f.`length` > (SELECT avg(f.`length` ) FROM film f)
+Выполните explain analyze следующего запроса:
+```sql
+select distinct concat(c.last_name, ' ', c.first_name), sum(p.amount) over (partition by c.customer_id, f.title)
+from payment p, rental r, customer c, inventory i, film f
+where date(p.payment_date) = '2005-07-30' and p.payment_date = r.rental_date and r.customer_id = c.customer_id and i.inventory_id = r.inventory_id
 ```
-![alt text](image-1.png)  
-### Задание 3
+- перечислите узкие места;
+Ответ:
+1. Неоптимальное использование JOIN 
+2. over (partition by c.customer_id, f.title) - зачем здесь выводить фильм, если в итоговой таблице он не выводится
+3. Из предыдущего - если заменить over на group by, то не нужен distinct, т.к. он тормозит выполнение запроса
+4. Лишний join на film
+5. date(p.payment_date) = '2005-07-30' - лишнее преобразование в дату. Лучше от него избавиться и использовать индекс
 
-Получите информацию, за какой месяц была получена наибольшая сумма платежей, и добавьте информацию по количеству аренд за этот месяц.
-``` SQL
-WITH total AS (
-    SELECT 
-        MONTH(p.payment_date) AS payment_month,
-        YEAR(p.payment_date) AS payment_year,
-        SUM(p.amount) AS amount,
-        (SELECT COUNT(*) from rental r
-			WHERE STR_TO_DATE(CONCAT(payment_year,'-', payment_month, '-', '01'), '%Y-%m-%d') BETWEEN 
-				STR_TO_DATE(CONCAT(YEAR(r.rental_date), '-', MONTH(r.rental_date), '-', '01'), '%Y-%m-%d') AND
-				STR_TO_DATE(CONCAT(YEAR(r.return_date), '-', MONTH(r.return_date), '-', '01'), '%Y-%m-%d')
-		) as rental_count
-    FROM payment p
-    GROUP BY payment_month, payment_year
-)
-SELECT DATE_FORMAT(STR_TO_DATE(CONCAT(total.payment_year, '-',total.payment_month,'-','01'), '%Y-%m-%d'),'%Y %M') as month,
-	total.amount,
-	total.rental_count  FROM total 
-WHERE total.amount = (SELECT MAX(amount) FROM total);
+- оптимизируйте запрос: внесите корректировки по использованию операторов, при необходимости добавьте индексы.
+
+Можно привести запрос к виду
+```sql
+select  
+concat(c.last_name, ' ', c.first_name),
+sum(p.amount) 
+from 
+payment p
+INNER JOIN rental r ON p.payment_date = r.rental_date
+INNER JOIN customer c ON r.customer_id = c.customer_id
+INNER JOIN inventory i ON r.inventory_id = i.inventory_id
+WHERE p.payment_date >= '2005-07-30' 
+  AND p.payment_date < '2005-07-31'
+group by c.last_name, ' ', c.first_name;
 ```
-![alt text](image-5.png)
-
+И добавить индекс
+```sql
+CREATE INDEX idx_payment_date ON payment(payment_date);
+```
 
 ## Дополнительные задания (со звёздочкой*)
 Эти задания дополнительные, то есть не обязательные к выполнению, и никак не повлияют на получение вами зачёта по этому домашнему заданию. Вы можете их выполнить, если хотите глубже шире разобраться в материале.
 
-### Задание 4*
+### Задание 3*
 
-Посчитайте количество продаж, выполненных каждым продавцом. Добавьте вычисляемую колонку «Премия». Если количество продаж превышает 8000, то значение в колонке будет «Да», иначе должно быть значение «Нет».
+Самостоятельно изучите, какие типы индексов используются в PostgreSQL. Перечислите те индексы, которые используются в PostgreSQL, а в MySQL — нет.
 
-``` SQL
-SELECT 
-    CONCAT(s.first_name, ' ', s.last_name) AS manager,
-    COUNT(r.rental_id) as total_rental,
-    CASE WHEN COUNT(r.rental_id) > 8000 THEN 'Да'
-        ELSE 'Нет' END as Премия
-FROM staff s 
-JOIN rental r on r.staff_id = s.staff_id 
-GROUP BY s.staff_id
-```
-![alt text](image-3.png)
-
-
-
-### Задание 5*
-
-Найдите фильмы, которые ни разу не брали в аренду.
-
-``` SQL
-SELECT f.title  FROM film f 
-LEFT JOIN (SELECT r.rental_id , i.film_id  FROM rental r 
-JOIN inventory i on r.inventory_id = i.inventory_id) as r on f.film_id  = r.film_id
-WHERE r.rental_id  IS NULL
-```
-![alt text](image-4.png)
+*Приведите ответ в свободной форме.*
